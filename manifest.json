@@ -1,0 +1,11 @@
+{
+  "domain": "siegenia_door",
+  "name": "Siegenia Door",
+  "codeowners": [],
+  "dependencies": [],
+  "config_flow": true,
+  "documentation": "https://github.com/home-assistant/example-custom-config/tree/master/custom_components/example_sensor/",
+  "iot_class": "local_polling",
+  "requirements": ["websocket-client"],
+  "version": "0.1.0"
+}
