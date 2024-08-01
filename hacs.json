@@ -1,6 +1,6 @@
 {
 	"name": "Siegenia door",
-	"content_in_root": false,
+	"content_in_root": true,
 	"domains": ["lock"],
 	"homeassistant": "2024.7.4",
 	"render_readme": true
