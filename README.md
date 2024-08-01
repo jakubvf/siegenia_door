@@ -30,6 +30,10 @@ Home Assistant custom component for SIEGENIA Automatic Door KFV.
 * The open/closed sensor is not instant. (Possible improvements left unexplored)
 * Tested on two doors only; may not work with other models.
 
+
+### Screenshot
+<img width="1084" alt="screenshot" src="https://github.com/user-attachments/assets/52bdf81d-e47c-404f-b5c5-eb9d3f1f48c7">
+
 ### To-do
 
 * Additional features like HA auto-discovery and user management are possible, but not implemented.
