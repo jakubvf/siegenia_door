@@ -39,15 +39,15 @@ class SiegeniaDoorLock(LockEntity):
         self._attr_is_locked = not self._attr_is_unlocked and not self._attr_is_open
 
     def lock(self, **kwargs):
-        """Lock all or specified locks. A code to lock the lock with may optionally be specified."""
+        """Lock all or specified locks."""
         self._door.set_day_mode(False)
 
     def unlock(self, **kwargs):
-        """Unlock all or specified locks. A code to unlock the lock with may optionally be specified."""
+        """Unlock all or specified locks."""
         self._door.set_day_mode(True)
 
     def open(self, **kwargs):
-        """Open (unlatch) all or specified locks. A code to open the lock with may optionally be specified."""
+        """Open (unlatch) all or specified locks."""
         self._door.open()
 
     @property

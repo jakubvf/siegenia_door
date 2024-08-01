@@ -12,8 +12,6 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = [Platform.LOCK]
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up Dyson Pure Cool from configuration file."""
-
     if DOMAIN not in config:
         return True
 

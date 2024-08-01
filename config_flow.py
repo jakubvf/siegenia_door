@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_HOST, CONF_USERNAME, CONF_PASSWORD
 import homeassistant.helpers.config_validation as cv
 
-from .const import DOMAIN  # pylint:disable=unused-import
+from .const import DOMAIN
 from .siegenia_door import SiegeniaDoor
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,11 +29,6 @@ async def validate_input(hass: HomeAssistant, host, username, password) -> dict[
 
     Data has the keys from DATA_SCHEMA with values provided by the user.
     """
-    # Validate the data can be used to set up a connection.
-
-    # This is a simple example to show an error in the UI for a short hostname
-    # The exceptions are defined at the end of this file, and are used in the
-    # `async_step_user` method below.
     # TODO: Proper checking
     if len(host) < 3:
         raise InvalidHost
@@ -43,8 +38,6 @@ async def validate_input(hass: HomeAssistant, host, username, password) -> dict[
     if not await door.test_connection():
         raise CannotConnect
 
-    # Return info that you want to store in the config entry.
-    # "Title" is what is displayed to the user for this hub device
     return {"title": host, 'host': host, 'username': username, 'password': password}
 
 
@@ -52,9 +45,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Hello World."""
 
     VERSION = 1
-    # Pick one of the available connection classes in homeassistant/config_entries.py
-    # This tells HA if it should be asking for updates, or it'll be notified of updates
-    # automatically.
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLL
 
     async def async_step_user(self, user_input: Optional[Dict[str, Any]]):
