@@ -25,3 +25,7 @@ Home Assistant custom component for SIEGENIA Automatic Door KFV.
 
 * Additional features like HA auto-discovery and user management are possible, but not implemented.
 
+### Credits
+Thanks to @Apollon77 and @EvotecIT for documenting the protocol.
+ * https://github.com/EvotecIT/homebridge-siegenia
+ * https://github.com/Apollon77/ioBroker.siegenia
