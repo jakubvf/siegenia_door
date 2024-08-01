@@ -1,15 +1,27 @@
-# Example Sensor
+# Siegenia door
 
-This is a minimum implementation of an integration providing a sensor measurement.
+Home Assistant custom component for SIEGENIA Automatic Door KFV.
 
-### Installation
+---
 
-Copy this folder to `<config_dir>/custom_components/example_sensor/`.
+### Features
 
-Add the following to your `configuration.yaml` file:
+* Exposes [Home Assistant's Lock entity](https://www.home-assistant.io/integrations/lock/) to control your door.
+* View the current status of the door.
 
-```yaml
-# Example configuration.yaml entry
-sensor:
-  - platform: example_sensor
-```
+### Requirements
+
+* The door must be connected to your local network via WiFi.
+* You need to know the IP address of your door.
+* Door user account's username/password.
+
+### Notes
+
+* Actions take approximately 5-10 seconds to propagate.
+* The open/closed sensor is not instant. (Possible improvements left unexplored)
+* Tested on two doors only; may not work with other models.
+
+### To-do
+
+* Additional features like HA auto-discovery and user management are possible, but not implemented.
+
