@@ -21,8 +21,7 @@ Home Assistant custom component for SIEGENIA Automatic Door KFV.
    * Paste https://github.com/jakubvf/siegenia_door
    * Select Integration
 2. Restart Home Assistant
-3. Jablotron integration should be available in the integrations UI
-
+3. Done
 
 ### Notes
 
