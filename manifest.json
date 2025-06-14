@@ -7,5 +7,5 @@
   "documentation": "https://github.com/jakubvf/siegenia_door",
   "iot_class": "local_polling",
   "requirements": ["websocket-client"],
-  "version": "0.1.1"
+  "version": "0.1.2"
 }
