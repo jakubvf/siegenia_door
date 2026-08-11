@@ -56,3 +56,56 @@ PARAMS_NEW_FIRMWARE: Final[dict[str, Any]] = {
 }
 
 LOCK_ENTITY_ID: Final = "lock.haustur"
+
+# `getUser` output for a door with four users, shaped like the real thing but
+# with invented names. Userid 0 is the built-in admin, which is the one user the
+# door reports without `starttime`/`duration`.
+#
+# The `apid`s are deliberately not dense and not per-user: the door allocates
+# them monotonically across all users, so alice's second credential is 3 while
+# bob's only one is 5. A fixture that numbered them from zero per user would let
+# a per-user allocation bug pass unnoticed.
+USERS_ACS: Final[list[dict[str, Any]]] = [
+    {
+        "userid": 0,
+        "username": "Admin",
+        "usertype": 1,
+        "isapp": True,
+        "isdisabled": False,
+        "keyless": True,
+        "ap": [],
+    },
+    {
+        "userid": 1,
+        "username": "alice",
+        "usertype": 2,
+        "isapp": True,
+        "isdisabled": False,
+        "keyless": True,
+        "starttime": 1699093719,
+        "duration": 86400,
+        "ap": [{"apid": 2, "aptype": 0}, {"apid": 3, "aptype": 10}],
+    },
+    {
+        "userid": 2,
+        "username": "bob",
+        "usertype": 2,
+        "isapp": False,
+        "isdisabled": False,
+        "keyless": False,
+        "starttime": 1699093720,
+        "duration": 86400,
+        "ap": [{"apid": 5, "aptype": 0}],
+    },
+    {
+        "userid": 3,
+        "username": "carol",
+        "usertype": 3,
+        "isapp": False,
+        "isdisabled": True,
+        "keyless": False,
+        "starttime": 1699093721,
+        "duration": 86400,
+        "ap": [],
+    },
+]

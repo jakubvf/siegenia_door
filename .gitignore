@@ -5,3 +5,8 @@ venv/
 .pytest_cache/
 .ruff_cache/
 .DS_Store
+
+# Reverse-engineering scratch space. Holds SIEGENIA's own APK, which is
+# proprietary and must never be redistributed from this repository. The
+# findings live in docs/acs-user-protocol.md instead.
+re/

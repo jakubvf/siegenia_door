@@ -30,15 +30,24 @@ import contextlib
 from itertools import count
 import json
 import logging
+import time
 from typing import Any
 
 import aiohttp
 
 from .const import (
+    ACS_MASTER_IO_SMART,
+    APID_NONE,
     CONNECT_TIMEOUT,
     KEEPALIVE_INTERVAL,
+    PARAM_ACS_MASTER,
+    PARAM_BUS_MASTER,
     RECONNECT_MAX_BACKOFF,
     RESPONSE_TIMEOUT,
+    STATUS_NOT_EXISTENT,
+    USER_ID_SCAN_LIMIT,
+    USERTYPE_ADMIN,
+    USERTYPE_USER,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -79,6 +88,23 @@ class SiegeniaCommandError(SiegeniaError):
         super().__init__(f"Command {command!r} failed with status {status!r}")
         self.command = command
         self.status = status
+
+
+class SiegeniaUnsupportedError(SiegeniaError):
+    """The door uses a user model this integration cannot drive."""
+
+
+def uses_multi_user_model(params: dict[str, Any]) -> bool:
+    """Return whether `getDeviceParams` selects the `...MultiUser` command family.
+
+    The official app branches on `acs_master`/`bus_master` being the string
+    `io_smart`. Firmware 1.9.1.23 reports neither key, which is the plain
+    `createUser`/`deleteUser` family -- so absence means supported, not unknown.
+    """
+    return any(
+        params.get(key) == ACS_MASTER_IO_SMART
+        for key in (PARAM_ACS_MASTER, PARAM_BUS_MASTER)
+    )
 
 
 def iter_json_objects(raw: str) -> list[dict[str, Any]]:
@@ -279,6 +305,138 @@ class SiegeniaClient:
         return the old value.
         """
         await self.async_command("setDeviceParams", params)
+
+    async def async_get_user(self, userid: int) -> dict[str, Any] | None:
+        """Return one user's `userdetails`, or None if the id holds no user.
+
+        The device answers an unused id with `not_existent`, which is an
+        expected outcome of enumeration rather than a failure, so it is not
+        logged as one.
+        """
+        try:
+            data = await self.async_command("getUser", {"userid": userid})
+        except SiegeniaCommandError as err:
+            if err.status == STATUS_NOT_EXISTENT:
+                return None
+            raise
+
+        details = data.get("userdetails")
+        return details if isinstance(details, dict) else None
+
+    async def async_list_users(
+        self, usercount: int | None = None
+    ) -> list[dict[str, Any]]:
+        """Enumerate users from id 0 upward.
+
+        Ids are dense from 0 in practice, so `usercount` from `getDeviceParams`
+        lets the scan stop as soon as that many users have been found. Gaps are
+        tolerated either way: a deleted user must not hide everyone behind it,
+        which is why the scan does not stop at the first `not_existent`.
+        """
+        users: list[dict[str, Any]] = []
+
+        for userid in range(USER_ID_SCAN_LIMIT):
+            if usercount is not None and len(users) >= usercount:
+                break
+            if (user := await self.async_get_user(userid)) is not None:
+                users.append(user)
+
+        return users
+
+    async def async_create_user(
+        self,
+        username: str,
+        password: str,
+        *,
+        usertype: int = USERTYPE_USER,
+        starttime: int | None = None,
+        duration: int = 86400,
+        isdisabled: bool = False,
+        isapp: bool = False,
+        keyless: bool = False,
+    ) -> int:
+        """Create a user and return the id the device allocated for it.
+
+        `starttime` is a plain UTC epoch in seconds and defaults to now; the ACS
+        screens of the official app send no local-time offset. Every field is
+        sent on every call, as the app does, because partial creates are
+        untested. `isapp` and `keyless` may both be false without preventing
+        fingerprint enrollment.
+        """
+        if usertype == USERTYPE_ADMIN:
+            # The app forces these three for an admin whatever its UI shows.
+            isdisabled = False
+            isapp = True
+            keyless = True
+
+        data = await self.async_command(
+            "createUser",
+            {
+                "username": username,
+                "password": password,
+                "starttime": int(time.time()) if starttime is None else starttime,
+                "duration": duration,
+                "usertype": usertype,
+                "isdisabled": isdisabled,
+                "isapp": isapp,
+                "keyless": keyless,
+            },
+        )
+
+        userid = data.get("userid")
+        if not isinstance(userid, int):
+            # The id is confirmed to come back on this firmware, and guessing it
+            # by enumerating afterwards could pick out the wrong user.
+            raise SiegeniaError("createUser did not return a userid")
+        return userid
+
+    async def async_delete_user(self, userid: int) -> None:
+        """Delete a user. Its access properties go with it."""
+        await self.async_command("deleteUser", {"userid": userid})
+
+    async def async_create_access_property(
+        self, userid: int, aptype: int, code: str | None = None
+    ) -> None:
+        """Begin enrollment of one credential slot.
+
+        `code` carries the digits of a PIN (`aptype` 20) and is sent for nothing
+        else: a fingerprint or tag is captured at the door itself. The reply
+        carries no `apid` -- the new one is only learnable from `getUser` once
+        the enrollment state machine reaches FINISH.
+        """
+        params: dict[str, Any] = {"userid": userid, "aptype": aptype}
+        if code is not None:
+            params["code"] = code
+
+        await self.async_command("createAccessProperty", params)
+
+    async def async_abort_enrollment(self) -> int:
+        """Cancel a running enrollment, returning its `apid` or `APID_NONE`.
+
+        An abort is the same command as the start, carrying `abort` and nothing
+        else. The device waits for a finger indefinitely, so the client owns the
+        timeout and must send this when it expires.
+        """
+        data = await self.async_command("createAccessProperty", {"abort": True})
+
+        apid = data.get("apid")
+        return apid if isinstance(apid, int) else APID_NONE
+
+    async def async_delete_access_property(self, apid: int) -> None:
+        """Remove one access property, by the id the device allocated for it."""
+        await self.async_command("deleteAccessProperty", {"apid": apid})
+
+    async def async_get_enrollment_state(self) -> str | None:
+        """Return the raw `enrollmentstate` string, e.g. "ENROLL".
+
+        The state is not carried in `getDeviceParams` on firmware 1.9.1.23, so
+        polling this is the only way to follow an enrollment; ordinary parameter
+        pushes continue during one and say nothing about its progress.
+        """
+        data = await self.async_command("getEnrollmentState")
+
+        state = data.get("enrollmentstate")
+        return state if isinstance(state, str) else None
 
     async def _async_connect(self) -> None:
         """Open a connection and authenticate on it."""

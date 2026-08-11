@@ -80,7 +80,100 @@ PARAM_DAYMODE: Final = "daymode"
 PARAM_STATE: Final = "state"
 PARAM_OPENCLOSE: Final = "openclose"
 PARAM_MAC: Final = "mac"
+PARAM_USERCOUNT: Final = "usercount"
+PARAM_PINLENGTH: Final = "pinlength"
+PARAM_ACS_MASTER: Final = "acs_master"
+PARAM_BUS_MASTER: Final = "bus_master"
 
 # `openclose` accepts a bare string on ACS (window drives take a per-sash map).
 # Only OPEN is attested; an automatic door can be triggered but not driven shut.
 OPENCLOSE_OPEN: Final = "OPEN"
+
+# The official app picks between two mutually exclusive user APIs per device: the
+# plain `createUser`/`deleteUser` family and a newer `...MultiUser` one. The
+# discriminator is `acs_master`/`bus_master` carrying the string below. Firmware
+# 1.9.1.23 reports neither parameter and rejects the MultiUser commands with
+# `command_not_found`, so that branch is entirely unverified and is refused
+# rather than guessed at.
+ACS_MASTER_IO_SMART: Final = "io_smart"
+
+# Returned by `getUser` and `deleteUser` for an id that holds no user. This is an
+# ordinary result while enumerating, not a failure.
+STATUS_NOT_EXISTENT: Final = "not_existent"
+
+# `usertype`, sent to `createUser` as its integer value.
+USERTYPE_NOT_SET: Final = 0
+USERTYPE_ADMIN: Final = 1
+USERTYPE_USER: Final = 2
+USERTYPE_ONE_TIME: Final = 3
+USERTYPE_INTERVAL: Final = 4
+
+USERTYPES: Final[dict[int, str]] = {
+    USERTYPE_NOT_SET: "Not set",
+    USERTYPE_ADMIN: "Admin",
+    USERTYPE_USER: "User",
+    USERTYPE_ONE_TIME: "One-time",
+    USERTYPE_INTERVAL: "Interval",
+}
+
+# An access property is one credential slot of a user. `aptype` says which slot
+# it is and is chosen by the client; `apid` is the instance id the door
+# allocates, globally unique across users rather than per user. Deleting takes
+# the `apid`, so conflating the two would remove another person's credential.
+APTYPE_FINGERPRINTS: Final[tuple[int, ...]] = (0, 1, 2, 3)
+APTYPE_RFID_TAGS: Final[tuple[int, ...]] = (10, 11, 12)
+APTYPE_PIN: Final = 20
+APTYPE_BLUETOOTH_DEVICES: Final[tuple[int, ...]] = (30, 31, 32)
+APTYPE_BLUETOOTH_CODES: Final[tuple[int, ...]] = (40, 41, 42)
+APTYPE_BLUETOOTH_TRANSMITTERS: Final[tuple[int, ...]] = (50, 51, 52)
+APTYPE_APP: Final = 60
+
+APTYPE_NAMES: Final[dict[int, str]] = {
+    0: "Fingerprint 1",
+    1: "Fingerprint 2",
+    2: "Fingerprint 3",
+    3: "Fingerprint 4",
+    10: "RFID tag 1",
+    11: "RFID tag 2",
+    12: "RFID tag 3",
+    20: "PIN code",
+    30: "Bluetooth device 1",
+    31: "Bluetooth device 2",
+    32: "Bluetooth device 3",
+    40: "Bluetooth registration code 1",
+    41: "Bluetooth registration code 2",
+    42: "Bluetooth registration code 3",
+    50: "Bluetooth transmitter 1",
+    51: "Bluetooth transmitter 2",
+    52: "Bluetooth transmitter 3",
+    60: "App",
+}
+
+# 0xFFFF, returned by an aborted enrollment to say nothing was created.
+APID_NONE: Final = 65535
+
+# Enrollment runs as an asynchronous state machine on the door, polled with
+# `getEnrollmentState`. Only FINISH is success; NO_ENROLL_ACTIVE is the resting
+# value and may be seen briefly right after `createAccessProperty`, so it cannot
+# be read as failure before the machine has been entered.
+ENROLLMENT_START: Final = "START"
+ENROLLMENT_ENROLL: Final = "ENROLL"
+ENROLLMENT_SYNC: Final = "SYNC"
+ENROLLMENT_FINISH: Final = "FINISH"
+ENROLLMENT_ABORT: Final = "ABORT"
+ENROLLMENT_NONE: Final = "NO_ENROLL_ACTIVE"
+
+ENROLLMENT_IN_PROGRESS: Final[frozenset[str]] = frozenset(
+    {ENROLLMENT_START, ENROLLMENT_ENROLL, ENROLLMENT_SYNC}
+)
+
+# The protocol mandates a one second poll. The door itself never times out -- it
+# sat in ENROLL for over a minute with no finger presented -- so the client owns
+# the deadline and must abort when it expires. A cooperative enrollment takes
+# roughly twenty seconds.
+ENROLLMENT_POLL_INTERVAL: Final = 1
+ENROLLMENT_TIMEOUT: Final = 120
+
+# User ids are dense from 0, but enumeration tolerates gaps, so it needs a bound
+# for the case where `usercount` is unknown.
+USER_ID_SCAN_LIMIT: Final = 64

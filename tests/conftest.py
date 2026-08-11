@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Generator
+from copy import deepcopy
+from itertools import count
 import json
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -33,6 +35,7 @@ from .const import (
     SERIAL,
     SYSTEM_NAME,
     USERNAME,
+    USERS_ACS,
 )
 
 # Number of event loop iterations granted to background tasks when a test needs
@@ -131,6 +134,29 @@ class FakeDevice:
         self.sockets: list[FakeWebSocket] = []
         self.handlers: dict[str, Callable[[FakeWebSocket, dict[str, Any]], None]] = {}
 
+        # ACS user store, keyed by userid, holding exactly what `getUser` reports.
+        self.users: dict[int, dict[str, Any]] = {
+            user["userid"]: deepcopy(user) for user in USERS_ACS
+        }
+        # The door allocates `apid`s monotonically across *all* users, so the
+        # fake keeps a single counter rather than one per user. A per-user
+        # counter would make every test of that property vacuous.
+        self.next_apid = 1 + max(
+            (ap["apid"] for user in self.users.values() for ap in user["ap"]),
+            default=-1,
+        )
+
+        # States handed out by successive `getEnrollmentState` calls. The last
+        # one sticks, so a script ending in ENROLL never finishes -- which is
+        # exactly how the door behaves when nobody presents a finger, and is how
+        # tests reach the client-side timeout.
+        self.enrollment_script: list[str] = ["START", "ENROLL", "FINISH"]
+        self.enrollment_state = "NO_ENROLL_ACTIVE"
+        self._enrollment_remaining: list[str] = []
+        self._enrolling: dict[str, Any] | None = None
+
+        self._sync_usercount()
+
     @property
     def socket(self) -> FakeWebSocket:
         """Return the most recently opened socket."""
@@ -186,8 +212,136 @@ class FakeDevice:
             ws.push_json({"id": message_id, "status": "ok"})
         elif command == "keepAlive":
             ws.push_json({"id": message_id, "status": "ok"})
+        elif command == "getUser":
+            self._handle_get_user(ws, request)
+        elif command == "createUser":
+            self._handle_create_user(ws, request)
+        elif command == "deleteUser":
+            self._handle_delete_user(ws, request)
+        elif command == "createAccessProperty":
+            self._handle_create_access_property(ws, request)
+        elif command == "deleteAccessProperty":
+            self._handle_delete_access_property(ws, request)
+        elif command == "getEnrollmentState":
+            self._handle_get_enrollment_state(ws, request)
         else:
             ws.push_json({"id": message_id, "status": "error"})
+
+    def _handle_get_user(self, ws: FakeWebSocket, request: dict[str, Any]) -> None:
+        """Answer `getUser`, reporting an id that holds no user as absent."""
+        message_id = request.get("id")
+        userid = (request.get("params") or {}).get("userid")
+
+        if (user := self.users.get(userid)) is None:
+            ws.push_json({"data": {}, "id": message_id, "status": "not_existent"})
+            return
+
+        ws.push_json(
+            {"data": {"userdetails": deepcopy(user)}, "id": message_id, "status": "ok"}
+        )
+
+    def _handle_create_user(self, ws: FakeWebSocket, request: dict[str, Any]) -> None:
+        """Store a new user under the id the door would have allocated."""
+        params = dict(request.get("params") or {})
+        userid = next(candidate for candidate in count() if candidate not in self.users)
+
+        # `getUser` echoes every field back except the password, which the door
+        # never reports again.
+        params.pop("password", None)
+        self.users[userid] = {"userid": userid, **params, "ap": []}
+        self._sync_usercount()
+
+        ws.push_json(
+            {"data": {"userid": userid}, "id": request.get("id"), "status": "ok"}
+        )
+
+    def _handle_delete_user(self, ws: FakeWebSocket, request: dict[str, Any]) -> None:
+        """Delete a user and everything enrolled against it."""
+        message_id = request.get("id")
+        userid = (request.get("params") or {}).get("userid")
+
+        if self.users.pop(userid, None) is None:
+            ws.push_json({"data": {}, "id": message_id, "status": "not_existent"})
+            return
+
+        self._sync_usercount()
+        ws.push_json({"data": {"userid": userid}, "id": message_id, "status": "ok"})
+
+    def _handle_create_access_property(
+        self, ws: FakeWebSocket, request: dict[str, Any]
+    ) -> None:
+        """Start a scripted enrollment, or abort the running one."""
+        message_id = request.get("id")
+        params = request.get("params") or {}
+
+        if params.get("abort"):
+            self._enrolling = None
+            self._enrollment_remaining = []
+            self.enrollment_state = "NO_ENROLL_ACTIVE"
+            # 0xFFFF: the sentinel for "nothing was created".
+            ws.push_json({"data": {"apid": 65535}, "id": message_id, "status": "ok"})
+            return
+
+        self._enrolling = {
+            "userid": params.get("userid"),
+            "aptype": params.get("aptype"),
+        }
+        self._enrollment_remaining = list(self.enrollment_script)
+
+        # Confirmed on hardware: the reply carries no apid. The new one is only
+        # learnable from `getUser` once the state machine reaches FINISH.
+        ws.push_json({"data": {}, "id": message_id, "status": "ok"})
+
+    def _handle_delete_access_property(
+        self, ws: FakeWebSocket, request: dict[str, Any]
+    ) -> None:
+        """Remove one access property, wherever in the store it lives."""
+        apid = (request.get("params") or {}).get("apid")
+
+        for user in self.users.values():
+            user["ap"] = [ap for ap in user["ap"] if ap["apid"] != apid]
+
+        ws.push_json({"data": {"apid": apid}, "id": request.get("id"), "status": "ok"})
+
+    def _handle_get_enrollment_state(
+        self, ws: FakeWebSocket, request: dict[str, Any]
+    ) -> None:
+        """Hand out the next scripted state, sticking on the last one."""
+        if self._enrollment_remaining:
+            # Popping all but the last entry makes the script's tail the resting
+            # state of this enrollment, so a script that never reaches FINISH
+            # keeps the client polling exactly as the real door does.
+            if len(self._enrollment_remaining) > 1:
+                self.enrollment_state = self._enrollment_remaining.pop(0)
+            else:
+                self.enrollment_state = self._enrollment_remaining[0]
+            if self.enrollment_state == "FINISH":
+                self._finish_enrollment()
+
+        ws.push_json(
+            {
+                "data": {"enrollmentstate": self.enrollment_state},
+                "id": request.get("id"),
+                "status": "ok",
+            }
+        )
+
+    def _finish_enrollment(self) -> None:
+        """Attach the credential the enrollment created to its user."""
+        if self._enrolling is None:
+            return
+
+        if (user := self.users.get(self._enrolling["userid"])) is not None:
+            user["ap"].append(
+                {"apid": self.next_apid, "aptype": self._enrolling["aptype"]}
+            )
+            self.next_apid += 1
+
+        self._enrolling = None
+
+    def _sync_usercount(self) -> None:
+        """Keep the reported `usercount` in step with the store."""
+        self.params["usercount"] = len(self.users)
 
     def push(self, data: dict[str, Any]) -> None:
         """Send an unsolicited `deviceParams` update over the live socket.
