@@ -1,0 +1,67 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to your SIEGENIA door",
+        "description": "Enter the address of your door and the credentials of a user account configured on it.",
+        "data": {
+          "host": "Host",
+          "username": "Username",
+          "password": "Password",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "The IP address or hostname of the door on your local network.",
+          "username": "A user account configured on the door. Use a dedicated account: the door allows only one session per account, so sharing one with the SIEGENIA app makes the two disconnect each other.",
+          "password": "The password for that account.",
+          "port": "Leave at 443 unless you have changed it."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate with your SIEGENIA door",
+        "description": "The door at {host} rejected the stored credentials. Enter them again.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure your SIEGENIA door",
+        "description": "Update how Home Assistant reaches this door.",
+        "data": {
+          "host": "Host",
+          "username": "Username",
+          "password": "Password",
+          "port": "Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect. Check that the address is correct and that the door is reachable on your network.",
+      "invalid_auth": "The door rejected these credentials.",
+      "session_occupied": "Another client is already signed in with this account. Close the SIEGENIA app, or set up a dedicated account on the door for Home Assistant.",
+      "wrong_device_type": "This is a SIEGENIA {device_type}, not an automatic door. This integration only supports the ACS door family.",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This door is already set up.",
+      "reauth_successful": "Re-authentication was successful.",
+      "reconfigure_successful": "Reconfiguration was successful.",
+      "unique_id_mismatch": "The address entered points at a different door than the one this entry was set up for."
+    }
+  },
+  "exceptions": {
+    "daymode_unsupported": {
+      "message": "This door does not report day/night mode, so it cannot be locked or unlocked from Home Assistant. Firmware 1.11 and later removed this feature from the local interface. You can still use the open action."
+    },
+    "lock_failed": {
+      "message": "Failed to lock the door: {error}"
+    },
+    "unlock_failed": {
+      "message": "Failed to unlock the door: {error}"
+    },
+    "open_failed": {
+      "message": "Failed to release the door latch: {error}"
+    }
+  }
+}

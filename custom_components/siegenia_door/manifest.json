@@ -1,0 +1,12 @@
+{
+  "domain": "siegenia_door",
+  "name": "SIEGENIA Door",
+  "codeowners": ["@jakubvf"],
+  "config_flow": true,
+  "documentation": "https://github.com/jakubvf/siegenia_door",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/jakubvf/siegenia_door/issues",
+  "requirements": [],
+  "version": "0.2.0"
+}
