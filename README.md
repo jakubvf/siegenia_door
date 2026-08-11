@@ -10,6 +10,8 @@ lock and unlock it by switching night/day mode, and trigger the door opener.
 ### Features
 
 * Lock entity with lock, unlock and latch release.
+* **Door user management**: add and remove the users stored on the door, and
+  enrol fingerprints, without reaching for the SIEGENIA app.
 * Live door status: the door pushes position changes over a persistent
   connection, so they appear without waiting for the next poll.
 * Reconnects on its own if the door or your network drops out.
@@ -68,6 +70,46 @@ flag cannot represent the difference:
 
 Automations that need to distinguish "shut" from "shut and bolted" should use
 `state_attr('lock.<your_door>', 'door_state')` rather than the entity state.
+
+### Door users and fingerprints
+
+Settings → Devices & services → SIEGENIA Door → **Configure** manages the users
+the door itself stores. You can add a user, delete one, enrol a fingerprint and
+remove a credential. Everything happens on the door and takes effect at once —
+none of it is stored in Home Assistant.
+
+This lives behind *Configure* rather than being exposed as actions on purpose.
+Config and options flows are restricted to Home Assistant administrators, while
+actions are callable by any automation; enrolling a credential on a front door
+belongs in the first category.
+
+**Enrolling a fingerprint**
+
+Be standing at the door before you submit the slot form. The door begins waiting
+for a finger the instant the form is submitted, and it waits *indefinitely* —
+it has no timeout of its own. A successful enrolment takes about twenty seconds.
+
+The dialog cancels the enrolment at the door if you close it. If Home Assistant
+loses its connection or the browser tab is closed outright, a timeout cancels it
+instead, after two minutes.
+
+Each user has four fingerprint slots. Only the free ones are offered, and a slot
+claimed by somebody else while your form was open is rejected rather than
+overwritten.
+
+**Limitations**
+
+* Newer doors that report `acs_master: io_smart` use a different set of user
+  management commands. There was no such door available to test against, so the
+  flow refuses them rather than guessing — use the SIEGENIA app for those.
+* Only fingerprints can be enrolled from here. RFID tags, PIN codes and
+  Bluetooth credentials use the same mechanism in the app but have not been
+  verified on hardware.
+* Editing an existing user is not offered, for the same reason.
+
+The protocol behind this is written up in
+[`docs/acs-user-protocol.md`](docs/acs-user-protocol.md), including which parts
+are confirmed on hardware and which are not.
 
 ### Firmware differences
 

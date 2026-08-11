@@ -50,6 +50,89 @@
       "unique_id_mismatch": "The address entered points at a different door than the one this entry was set up for."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Door users",
+        "description": "Add a user to the door, or manage one that already exists. Everything here is stored on the door itself and takes effect immediately.",
+        "menu_options": {
+          "add_user": "Add a user",
+          "select_user": "Manage an existing user"
+        }
+      },
+      "add_user": {
+        "title": "Add a door user",
+        "description": "The new account is created on the door. Its fingerprints, tags and codes are enrolled afterwards, from the menu of the user you just created.",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "usertype": "User type"
+        },
+        "data_description": {
+          "username": "The name the door will show for this user.",
+          "password": "The password for the new account, needed to sign in with the SIEGENIA app. The door never reports it back, so keep your own record of it.",
+          "usertype": "\"User\" is the ordinary choice. \"Admin\" grants full control of the door, including its users."
+        }
+      },
+      "select_user": {
+        "title": "Select a door user",
+        "description": "Pick the user you want to manage.",
+        "data": {
+          "userid": "User"
+        }
+      },
+      "user_menu": {
+        "title": "Manage {username}",
+        "description": "Choose what to do with {username}.",
+        "menu_options": {
+          "enroll_fingerprint": "Add a fingerprint",
+          "remove_credential": "Remove a credential",
+          "delete_user": "Delete this user"
+        }
+      },
+      "enroll_fingerprint": {
+        "title": "Add a fingerprint for {username}",
+        "description": "Only fingerprint slots that are still free for {username} are listed. Go to the door before you continue: it starts waiting for a finger the moment you submit this form.",
+        "data": {
+          "aptype": "Fingerprint slot"
+        },
+        "data_description": {
+          "aptype": "Which of the four fingerprint slots this user's new fingerprint is stored in."
+        }
+      },
+      "remove_credential": {
+        "title": "Remove a credential from {username}",
+        "description": "The credential is deleted from the door straight away and cannot be recovered; it has to be enrolled again.",
+        "data": {
+          "apid": "Credential"
+        }
+      },
+      "delete_user": {
+        "title": "Delete {username}?",
+        "description": "This removes {username} from the door together with every fingerprint, tag and code enrolled against them. It cannot be undone."
+      }
+    },
+    "progress": {
+      "enrolling": "Present the finger on the door's reader now, and follow the door's prompts until it confirms. This is {slot} for {username} and usually takes about twenty seconds. Closing this dialog cancels the enrollment."
+    },
+    "error": {
+      "create_user_failed": "The door refused to create that user. Check that the name is not already in use and that the password meets the door's requirements.",
+      "slot_taken": "That fingerprint slot was filled while this form was open. Pick another one."
+    },
+    "abort": {
+      "cannot_connect": "Lost contact with the door before the change could be made. Nothing was changed.",
+      "entry_not_loaded": "This door is not connected right now, so its users cannot be managed. Reload the integration and try again.",
+      "enrollment_already_running": "The door is already enrolling a credential, started by the SIEGENIA app or another Home Assistant dialog. Finish or cancel that one first.",
+      "enrollment_failed": "The door ended the enrollment without storing a fingerprint. Nothing was added; try again and follow the door's prompts.",
+      "enrollment_timeout": "No fingerprint was presented in time, so the enrollment was cancelled at the door. Nothing was added.",
+      "no_credentials": "This user has no fingerprints, tags or codes enrolled.",
+      "no_free_fingerprint_slots": "This user already has all four fingerprint slots in use. Remove one before adding another.",
+      "no_users": "The door reports no users at all.",
+      "unsupported_user_model": "This door uses the newer user management commands, which this integration cannot drive safely. Manage its users with the SIEGENIA app instead.",
+      "user_gone": "That user no longer exists on the door.",
+      "unknown": "Unexpected error"
+    }
+  },
   "exceptions": {
     "daymode_unsupported": {
       "message": "This door does not report day/night mode, so it cannot be locked or unlocked from Home Assistant. Firmware 1.11 and later removed this feature from the local interface. You can still use the open action."
