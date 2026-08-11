@@ -214,7 +214,25 @@ Enrollment is an asynchronous state machine on the door, not a single call.
 2. Poll `getEnrollmentState` **once per second**. It takes no parameters at all
    — sent with no `params` key, the way `keepAlive` is — *confirmed*.
 3. On `FINISH`, re-read the user with `getUser`. This is the only way to learn
-   the new `apid`.
+   the new `apid` — but see the read-back race below: it is not readable the
+   instant `FINISH` appears.
+
+**While an enrollment is running the door answers almost nothing else.**
+*Confirmed*: from the moment `createAccessProperty` lands until the enrollment
+ends, both `getUser` and `getDeviceParams` return a bare
+
+```json
+{"data": {}, "status": "error"}
+```
+
+for every single call, for the whole twenty to thirty seconds. Only
+`getEnrollmentState` and `keepAlive` keep working — which is just as well, since
+the session would otherwise expire mid-enrollment.
+
+This is the single most disruptive fact in this document for an integration that
+also polls. Anything doing periodic reads must be told to expect the refusals
+and hold its last known state, or every entity it owns drops to unavailable for
+the length of every enrollment, with an error logged for each poll in between.
 
 Abort by sending `createAccessProperty` with `abort: true` and nothing else. It
 returns `{"apid": 65535}` — `0xFFFF`, the "nothing was created" sentinel —
@@ -263,6 +281,18 @@ Three things an implementation must get right:
   `getDeviceParams` on this firmware, so the existing push handling cannot
   substitute. Ordinary `deviceParams` pushes do continue to arrive during
   enrollment and must not be mistaken for enrollment progress.
+* **`FINISH` does not mean the credential is readable yet.** *Confirmed the
+  hard way*: a `getUser` issued immediately on seeing `FINISH` returned the
+  user with an **empty `ap` array**, and the same read a round trip later
+  returned the new access property. `FINISH` reports that capture succeeded,
+  not that the user record has been updated. Anything reading the new `apid`
+  back must retry rather than trust the first answer.
+* **The machine returns to rest on its own.** *Confirmed*: `getEnrollmentState`
+  reads `NO_ENROLL_ACTIVE` immediately after a successful run and immediately
+  after an abort. A terminal state is not left lying around for the next
+  enrollment to trip over — though a client that treats the first `FINISH` it
+  sees as its own success is relying on that, so clearing the machine before
+  starting is cheap insurance.
 
 ### Other useful device parameters
 
@@ -290,12 +320,15 @@ From `getDeviceParams`, relevant to a user-management UI:
 * **Permissions.** Everything above was done as `admin`. Which commands a
   non-admin account may issue is untested, and this integration's README
   recommends configuring it with a dedicated account.
-* **Whether `apid`s are ever reused** after deletion.
-* **What the state becomes after `FINISH`** — whether the door settles back to
-  `NO_ENROLL_ACTIVE` on its own was never observed, because the successful run
-  stopped polling as soon as it saw `FINISH`. A client must therefore treat
-  `FINISH` as the terminal success signal rather than waiting for a return to
-  rest.
 * **Whether `getUser` ever echoes `password` back.** Every other field sent to
   `createUser` came back verbatim, but the captured `userdetails` carries no
   `password` at all. Assume it is write-only.
+
+### Answered since
+
+* **`apid`s are reused after deletion.** An enrollment took `apid` 9; the
+  credential was deleted; a later enrollment on a different user took `apid` 9
+  again. So an `apid` identifies a credential only for as long as it exists, and
+  must never be cached across a delete.
+* **The state after `FINISH` is `NO_ENROLL_ACTIVE`**, arrived at without a
+  client sending anything. See the enrollment section.

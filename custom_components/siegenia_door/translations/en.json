@@ -121,16 +121,17 @@
     },
     "abort": {
       "cannot_connect": "Lost contact with the door before the change could be made. Nothing was changed.",
-      "entry_not_loaded": "This door is not connected right now, so its users cannot be managed. Reload the integration and try again.",
       "enrollment_already_running": "The door is already enrolling a credential, started by the SIEGENIA app or another Home Assistant dialog. Finish or cancel that one first.",
       "enrollment_failed": "The door ended the enrollment without storing a fingerprint. Nothing was added; try again and follow the door's prompts.",
+      "enrollment_not_idle": "The door did not return to an idle state, so a new enrolment cannot be told apart from the last one. Try again in a moment, or use the SIEGENIA app to clear whatever it is doing.",
       "enrollment_timeout": "No fingerprint was presented in time, so the enrollment was cancelled at the door. Nothing was added.",
+      "entry_not_loaded": "This door is not connected right now, so its users cannot be managed. Reload the integration and try again.",
       "no_credentials": "This user has no fingerprints, tags or codes enrolled.",
       "no_free_fingerprint_slots": "This user already has all four fingerprint slots in use. Remove one before adding another.",
       "no_users": "The door reports no users at all.",
+      "unknown": "Unexpected error",
       "unsupported_user_model": "This door uses the newer user management commands, which this integration cannot drive safely. Manage its users with the SIEGENIA app instead.",
-      "user_gone": "That user no longer exists on the door.",
-      "unknown": "Unexpected error"
+      "user_gone": "That user no longer exists on the door."
     }
   },
   "exceptions": {

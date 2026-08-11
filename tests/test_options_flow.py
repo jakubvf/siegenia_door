@@ -11,7 +11,7 @@ import asyncio
 from typing import Any
 from unittest.mock import patch
 
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 import pytest
@@ -20,7 +20,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.siegenia_door.config_flow import STEP_ADD_USER_SCHEMA
 
 from .conftest import FakeDevice
-from .const import PARAMS_OLD_FIRMWARE
+from .const import LOCK_ENTITY_ID, PARAMS_OLD_FIRMWARE
 
 # A door that selects the unverified `...MultiUser` command family.
 PARAMS_IO_SMART: dict[str, Any] = {**PARAMS_OLD_FIRMWARE, "acs_master": "io_smart"}
@@ -271,6 +271,131 @@ async def test_enroll_fingerprint_refuses_while_the_door_is_already_enrolling(
     assert result["reason"] == "enrollment_already_running"
     # Neither a start nor an abort: the running enrollment is left alone.
     assert device.requests("createAccessProperty") == []
+
+
+async def test_the_lock_stays_available_while_the_door_enrolls(
+    hass: HomeAssistant,
+    device: FakeDevice,
+    init_integration: MockConfigEntry,
+) -> None:
+    """A door busy capturing a credential must not flap every entity.
+
+    Firmware 1.9.1.23 refuses `getDeviceParams` for the whole of an enrollment,
+    so without this the lock would go unavailable for the half minute a
+    fingerprint takes, and log an error for every poll in between.
+    """
+    device.enrollment_script = ["START", "ENROLL"]
+
+    result = await async_open_user_menu(hass, init_integration, 3)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "enroll_fingerprint"}
+    )
+    flow_id = result["flow_id"]
+
+    with patch_enrollment_timings():
+        result = await hass.config_entries.options.async_configure(
+            flow_id, {"aptype": "0"}
+        )
+        assert result["type"] is FlowResultType.SHOW_PROGRESS
+
+        coordinator = init_integration.runtime_data
+        assert coordinator.enrollment_active is True
+
+        # The door refuses this poll; the last known state must survive it.
+        await coordinator.async_refresh()
+        assert coordinator.last_update_success is True
+        assert hass.states.get(LOCK_ENTITY_ID).state != STATE_UNAVAILABLE
+
+        hass.config_entries.options.async_abort(flow_id)
+        await hass.async_block_till_done()
+
+    assert coordinator.enrollment_active is False
+
+
+async def test_a_refused_poll_outside_an_enrollment_still_counts_as_a_failure(
+    hass: HomeAssistant,
+    device: FakeDevice,
+    init_integration: MockConfigEntry,
+) -> None:
+    """The enrollment suppression must not become a permanent blindfold."""
+    coordinator = init_integration.runtime_data
+    assert coordinator.enrollment_active is False
+
+    device.handlers["getDeviceParams"] = lambda ws, request: ws.push_json(
+        {"data": {}, "id": request.get("id"), "status": "error"}
+    )
+    await coordinator.async_refresh()
+
+    assert coordinator.last_update_success is False
+    assert hass.states.get(LOCK_ENTITY_ID).state == STATE_UNAVAILABLE
+
+
+async def test_enrollment_clears_a_stale_finish_before_starting(
+    hass: HomeAssistant,
+    device: FakeDevice,
+    init_integration: MockConfigEntry,
+) -> None:
+    """A FINISH left by an earlier run must not be read as this run's success.
+
+    The door keeps the previous enrollment's terminal state, so a poll that
+    trusts the first FINISH it sees reports success within a second, before the
+    reader has been touched, and stores no credential. Observed on real
+    hardware: the flow reported success and the user's `ap` array stayed empty.
+    """
+    device.enrollment_state = "FINISH"
+
+    result = await async_open_user_menu(hass, init_integration, 3)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "enroll_fingerprint"}
+    )
+    flow_id = result["flow_id"]
+
+    with patch_enrollment_timings():
+        result = await hass.config_entries.options.async_configure(
+            flow_id, {"aptype": "0"}
+        )
+        # The stale state is cleared, so this is a real enrollment, not an
+        # instant false success.
+        assert result["type"] is FlowResultType.SHOW_PROGRESS
+
+        await hass.async_block_till_done()
+        result = await hass.config_entries.options.async_configure(flow_id)
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    # The abort that reset the machine comes first, then the real start.
+    starts = device.requests("createAccessProperty")
+    assert starts[0]["params"] == {"abort": True}
+    assert starts[1]["params"] == {"userid": 3, "aptype": 0}
+    # And the credential genuinely exists, which is what the live run lacked.
+    assert device.users[3]["ap"] == [{"apid": 6, "aptype": 0}]
+
+
+async def test_enrollment_refuses_a_door_that_will_not_go_idle(
+    hass: HomeAssistant,
+    device: FakeDevice,
+    init_integration: MockConfigEntry,
+) -> None:
+    """If the machine cannot be reset, polling it could not tell runs apart."""
+    device.enrollment_state = "FINISH"
+
+    def ignore_abort(ws: Any, request: dict[str, Any]) -> None:
+        """Answer an abort without ever leaving the terminal state."""
+        ws.push_json({"data": {"apid": 65535}, "id": request["id"], "status": "ok"})
+
+    device.handlers["createAccessProperty"] = ignore_abort
+
+    result = await async_open_user_menu(hass, init_integration, 3)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "enroll_fingerprint"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"aptype": "0"}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "enrollment_not_idle"
+    # Refused before starting anything, so nothing is left half open.
+    assert device.users[3]["ap"] == []
 
 
 async def test_enrollment_stores_the_fingerprint_when_the_door_finishes(

@@ -205,7 +205,16 @@ class FakeDevice:
                     {"data": {}, "id": message_id, "status": "authentication_error"}
                 )
         elif command == "getDeviceParams":
-            ws.push_json({"data": dict(self.params), "id": message_id, "status": "ok"})
+            if self._enrolling is not None:
+                # Confirmed on firmware 1.9.1.23: a door capturing a credential
+                # refuses everything except `getEnrollmentState` (and keepAlive)
+                # with a bare `error` for as long as it takes. A fake that kept
+                # answering would hide the entity flapping that causes.
+                ws.push_json({"data": {}, "id": message_id, "status": "error"})
+            else:
+                ws.push_json(
+                    {"data": dict(self.params), "id": message_id, "status": "ok"}
+                )
         elif command == "setDeviceParams":
             if self.apply_set_device_params:
                 self.params.update(request.get("params") or {})
@@ -231,6 +240,11 @@ class FakeDevice:
         """Answer `getUser`, reporting an id that holds no user as absent."""
         message_id = request.get("id")
         userid = (request.get("params") or {}).get("userid")
+
+        if self._enrolling is not None:
+            # Refused mid-enrollment, exactly as the real door refuses it.
+            ws.push_json({"data": {}, "id": message_id, "status": "error"})
+            return
 
         if (user := self.users.get(userid)) is None:
             ws.push_json({"data": {}, "id": message_id, "status": "not_existent"})

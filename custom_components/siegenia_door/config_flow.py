@@ -621,7 +621,7 @@ class SiegeniaDoorOptionsFlow(OptionsFlow):
         """
         if not self._enrolling:
             return
-        self._enrolling = False
+        self._async_set_enrolling(False)
 
         try:
             client = self._client
@@ -639,18 +639,50 @@ class SiegeniaDoorOptionsFlow(OptionsFlow):
         client = self._client
 
         try:
+            state = await client.async_get_enrollment_state()
+
             # A second Home Assistant dialog or the phone app may already have
             # the door waiting for a finger. Starting another would abort theirs.
-            if await client.async_get_enrollment_state() in ENROLLMENT_IN_PROGRESS:
+            if state in ENROLLMENT_IN_PROGRESS:
                 return self.async_abort(reason="enrollment_already_running")
+
+            if state is not None and state != ENROLLMENT_NONE:
+                # Defensive, not observed: firmware 1.9.1.23 always settles back
+                # to NO_ENROLL_ACTIVE, both after a FINISH and after an abort.
+                # But the poll below takes the first FINISH it sees as this
+                # run's success, so a firmware that left a terminal state
+                # lying around would make it report success in under a second
+                # without the reader having been touched. Clearing it first
+                # costs one command and removes that whole class of failure.
+                await client.async_abort_enrollment()
+                if await client.async_get_enrollment_state() != ENROLLMENT_NONE:
+                    # Refuse rather than poll against a baseline that cannot be
+                    # trusted to distinguish this enrollment from the last one.
+                    return self.async_abort(reason="enrollment_not_idle")
+
+            # Flagged before the command lands, because the door stops
+            # answering anything else the moment it does.
+            self._async_set_enrolling(True)
             await client.async_create_access_property(self._userid, aptype)  # type: ignore[arg-type]
         except SiegeniaError as err:
+            self._async_set_enrolling(False)
             _LOGGER.debug("Starting a fingerprint enrollment failed: %s", err)
             return self.async_abort(reason="cannot_connect")
 
         self._aptype = aptype
-        self._enrolling = True
         return await self.async_step_enroll()
+
+    @callback
+    def _async_set_enrolling(self, enrolling: bool) -> None:
+        """Record that an enrollment is running, here and on the coordinator.
+
+        The coordinator needs to know so it can ride out the poll failures the
+        door produces throughout, instead of reporting the door as unavailable
+        for as long as a credential takes to capture.
+        """
+        self._enrolling = enrolling
+        with contextlib.suppress(UnknownEntry, AttributeError):
+            self.config_entry.runtime_data.enrollment_active = enrolling
 
     async def _async_run_enrollment(self) -> None:
         """Poll the enrollment to its end, aborting at the door if it fails."""
@@ -659,15 +691,16 @@ class SiegeniaDoorOptionsFlow(OptionsFlow):
         except EnrollmentFailed:
             # The door waits for a finger indefinitely, so every unsuccessful
             # exit owes it an abort or the slot stays half open.
-            self._enrolling = False
+            self._async_set_enrolling(False)
             await _async_abort_at_door(self._client)
             raise
 
-        self._enrolling = False
+        self._async_set_enrolling(False)
 
     async def _async_poll_enrollment(self) -> None:
         """Follow the door's enrollment state machine until it settles."""
         started = False
+        last_state: str | None = None
         deadline = monotonic() + ENROLLMENT_TIMEOUT
 
         while (remaining := deadline - monotonic()) > 0:
@@ -678,7 +711,16 @@ class SiegeniaDoorOptionsFlow(OptionsFlow):
             except SiegeniaError as err:
                 raise EnrollmentFailed("cannot_connect") from err
 
+            if state != last_state:
+                # The whole run is four or five transitions, so logging each one
+                # is cheap and is the only record of what the door actually did.
+                _LOGGER.debug("Enrollment state: %s -> %s", last_state, state)
+                last_state = state
+
             if state == ENROLLMENT_FINISH:
+                # Trustworthy only because the machine was proven to be at rest
+                # before `createAccessProperty`; a FINISH here cannot be a
+                # leftover from an earlier enrollment.
                 return
             if state in ENROLLMENT_IN_PROGRESS:
                 started = True

@@ -63,6 +63,10 @@ class SiegeniaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.client = client
         self.device: dict[str, Any] = {}
+        # Set by the options flow while the door is capturing a credential. The
+        # door answers nothing but `getEnrollmentState` for the ~30 seconds that
+        # takes, so ordinary polling is expected to fail throughout.
+        self.enrollment_active = False
         self._last_push: float | None = None
         self._fast_poll_until: float = 0.0
 
@@ -134,6 +138,13 @@ class SiegeniaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except SiegeniaAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except SiegeniaError as err:
+            if self.enrollment_active and self.data is not None:
+                # Confirmed on firmware 1.9.1.23: while an enrollment runs, the
+                # door refuses `getDeviceParams` and `getUser` alike with status
+                # `error`. Treating that as a real failure would flap every
+                # entity to unavailable for the length of every enrollment.
+                _LOGGER.debug("Ignoring a poll refused during enrollment: %s", err)
+                return self.data
             raise UpdateFailed(str(err)) from err
 
         self._reschedule()
