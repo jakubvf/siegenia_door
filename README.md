@@ -29,6 +29,7 @@ lock and unlock it by switching night/day mode, and trigger the door opener.
 > The door allows only **one session per user account**. If Home Assistant signs
 > in with the same account as the SIEGENIA Comfort app, the two will keep kicking
 > each other off. Create a second user on the door and give it to Home Assistant.
+> The Home Assistant user must have the permission to use the app.
 
 ### Installation
 
