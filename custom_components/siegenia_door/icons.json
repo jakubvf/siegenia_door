@@ -1,0 +1,9 @@
+{
+  "entity": {
+    "button": {
+      "reset_security_block": {
+        "default": "mdi:lock-reset"
+      }
+    }
+  }
+}

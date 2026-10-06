@@ -10,6 +10,8 @@ lock and unlock it by switching night/day mode, and trigger the door opener.
 ### Features
 
 * Lock entity with lock, unlock and latch release.
+* **Reset security block** button, to unblock the fingerprint reader after
+  too many rejected fingers — the same action as in the SIEGENIA app.
 * **Door user management**: add and remove the users stored on the door, and
   enrol fingerprints, without reaching for the SIEGENIA app.
 * Live door status: the door pushes position changes over a persistent
@@ -111,6 +113,19 @@ overwritten.
 The protocol behind this is written up in
 [`docs/acs-user-protocol.md`](docs/acs-user-protocol.md), including which parts
 are confirmed on hardware and which are not.
+
+### Security block
+
+After too many rejected fingerprints the door blocks its reader, and the
+SIEGENIA app reports *"At least one ACS is blocked"*. The **Reset security
+block** button (under the device's *Configuration* controls) lifts it, exactly
+as the app's *Reset security block* does.
+
+The door only accepts this from an **administrator** account. If Home Assistant
+signs in with an ordinary user, pressing the button fails with an error.
+
+Like any button, it can be pressed by automations and scripts. If that is more
+reach than you want for a front door, disable the entity.
 
 ### Firmware differences
 

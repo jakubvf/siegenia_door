@@ -37,6 +37,7 @@ import aiohttp
 
 from .const import (
     ACS_MASTER_IO_SMART,
+    ADMIN_PARAM_VDS_RESET,
     APID_NONE,
     CONNECT_TIMEOUT,
     KEEPALIVE_INTERVAL,
@@ -305,6 +306,16 @@ class SiegeniaClient:
         return the old value.
         """
         await self.async_command("setDeviceParams", params)
+
+    async def async_reset_security_block(self) -> None:
+        """Lift the lockout the door imposes after repeated rejected credentials.
+
+        This is the official app's "Reset security block". It goes through
+        `setAdminDeviceParams` rather than `setDeviceParams`, so a non-admin
+        account may be refused. Only `vdsreset` is ever sent from here: `reset`
+        on the same command factory-resets the whole system.
+        """
+        await self.async_command("setAdminDeviceParams", {ADMIN_PARAM_VDS_RESET: True})
 
     async def async_get_user(self, userid: int) -> dict[str, Any] | None:
         """Return one user's `userdetails`, or None if the id holds no user.

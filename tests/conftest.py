@@ -130,6 +130,9 @@ class FakeDevice:
         self.password = PASSWORD
         self.connect_error: Exception | None = None
         self.apply_set_device_params = False
+        # Every key ever written with `setAdminDeviceParams`, so a test can tell
+        # a security-block reset apart from the factory reset on the same command.
+        self.admin_params: dict[str, Any] = {}
         self.sent: list[dict[str, Any]] = []
         self.sockets: list[FakeWebSocket] = []
         self.handlers: dict[str, Callable[[FakeWebSocket, dict[str, Any]], None]] = {}
@@ -219,6 +222,9 @@ class FakeDevice:
             if self.apply_set_device_params:
                 self.params.update(request.get("params") or {})
             ws.push_json({"id": message_id, "status": "ok"})
+        elif command == "setAdminDeviceParams":
+            self.admin_params.update(request.get("params") or {})
+            ws.push_json({"data": {}, "id": message_id, "status": "ok"})
         elif command == "keepAlive":
             ws.push_json({"id": message_id, "status": "ok"})
         elif command == "getUser":

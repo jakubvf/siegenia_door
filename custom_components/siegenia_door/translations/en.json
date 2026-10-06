@@ -134,6 +134,13 @@
       "user_gone": "That user no longer exists on the door."
     }
   },
+  "entity": {
+    "button": {
+      "reset_security_block": {
+        "name": "Reset security block"
+      }
+    }
+  },
   "exceptions": {
     "daymode_unsupported": {
       "message": "This door does not report day/night mode, so it cannot be locked or unlocked from Home Assistant. Firmware 1.11 and later removed this feature from the local interface. You can still use the open action."
@@ -146,6 +153,9 @@
     },
     "open_failed": {
       "message": "Failed to release the door latch: {error}"
+    },
+    "reset_security_block_failed": {
+      "message": "Failed to reset the security block: {error}. The door only accepts this from an administrator account."
     }
   }
 }

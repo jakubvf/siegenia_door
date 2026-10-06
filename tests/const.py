@@ -56,6 +56,7 @@ PARAMS_NEW_FIRMWARE: Final[dict[str, Any]] = {
 }
 
 LOCK_ENTITY_ID: Final = "lock.haustur"
+RESET_BUTTON_ENTITY_ID: Final = "button.haustur_reset_security_block"
 
 # `getUser` output for a door with four users, shaped like the real thing but
 # with invented names. Userid 0 is the built-in admin, which is the one user the

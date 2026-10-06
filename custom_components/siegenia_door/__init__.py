@@ -16,7 +16,7 @@ from .api import SiegeniaClient
 from .const import CONF_USE_TLS, DEFAULT_PORT, DEFAULT_USE_TLS
 from .coordinator import SiegeniaConfigEntry, SiegeniaCoordinator
 
-PLATFORMS: list[Platform] = [Platform.LOCK]
+PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.LOCK]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: SiegeniaConfigEntry) -> bool:

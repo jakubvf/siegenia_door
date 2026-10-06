@@ -85,6 +85,13 @@ PARAM_PINLENGTH: Final = "pinlength"
 PARAM_ACS_MASTER: Final = "acs_master"
 PARAM_BUS_MASTER: Final = "bus_master"
 
+# Written with `setAdminDeviceParams`, which the official app uses for its
+# "Reset security block" action: after too many rejected fingerprints the door
+# locks its reader out (warning code 21, "At least one ACS is blocked") until
+# this is sent. The sibling key `reset` on the same command is a *factory reset
+# of the entire system*, so the two must never be confused.
+ADMIN_PARAM_VDS_RESET: Final = "vdsreset"
+
 # `openclose` accepts a bare string on ACS (window drives take a per-sash map).
 # Only OPEN is attested; an automatic door can be triggered but not driven shut.
 OPENCLOSE_OPEN: Final = "OPEN"

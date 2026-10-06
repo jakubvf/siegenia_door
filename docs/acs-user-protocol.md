@@ -75,7 +75,7 @@ error.
 | `getPersistentEvents` | Read the door's access log | untested |
 | `setPassword` | Change a user's password | untested |
 | `getAcsDeviceIds`, `getAcsDeviceDetails`, `setAcsDeviceDetails` | Bus peripherals | untested |
-| `setAdminDeviceParams` | Admin-only parameter writes | untested |
+| `setAdminDeviceParams` | Admin-only parameter writes. `{"vdsreset": true}` is the app's "Reset security block" (implemented, not yet verified on hardware); `{"reset": true}` is a **factory reset of the entire system** | untested |
 
 ### Two user models
 
